@@ -8,14 +8,19 @@ import 'package:rainfall_app/widgets/cards/metric_card.dart';
 import 'package:rainfall_app/widgets/common/status_chip.dart';
 import 'package:rainfall_app/screens/field/gis_screen.dart';
 
-class FieldHomeScreen extends StatelessWidget {
+class FieldHomeScreen extends StatefulWidget {
   final UserModel user;
 
   const FieldHomeScreen({super.key, required this.user});
 
   @override
+  State<FieldHomeScreen> createState() => _FieldHomeScreenState();
+}
+
+class _FieldHomeScreenState extends State<FieldHomeScreen> {
+  @override
   Widget build(BuildContext context) {
-    final station = MockData.getAssignedStation(user.assignedAreaId);
+    final station = MockData.getAssignedStation(widget.user.assignedAreaId);
     final bool submittedToday = station.status == StationStatus.reported;
 
     return Scaffold(
@@ -39,7 +44,7 @@ class FieldHomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        user.name,
+                        widget.user.name,
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -53,7 +58,7 @@ class FieldHomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          user.role.displayName,
+                          widget.user.role.displayName,
                           style: const TextStyle(
                             color: AppColors.primary,
                             fontSize: 12,
@@ -146,9 +151,11 @@ class FieldHomeScreen extends StatelessWidget {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => GisScreen(user: user),
+                                    builder: (_) => GisScreen(user: widget.user),
                                   ),
-                                );
+                                ).then((_) {
+                                  setState(() {});
+                                });
                               },
                               child: const Text(
                                 'Start Submission',
@@ -190,7 +197,7 @@ class FieldHomeScreen extends StatelessWidget {
                     child: MetricCard(
                       title: 'Rainfall',
                       value: station.todayRainfall != null
-                          ? '${station.todayRainfall!.toStringAsFixed(0)} mm'
+                          ? '${station.todayRainfall!.toStringAsFixed(1)} mm'
                           : '-- mm',
                       color: AppColors.green,
                     ),
@@ -254,7 +261,7 @@ class FieldHomeScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      station.villageName,
+                      station.name,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

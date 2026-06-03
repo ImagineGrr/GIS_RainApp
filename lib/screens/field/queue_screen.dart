@@ -3,11 +3,68 @@ import 'package:rainfall_app/theme/app_colors.dart';
 import 'package:rainfall_app/models/user_model.dart';
 import 'package:rainfall_app/models/rainfall_model.dart';
 import 'package:rainfall_app/utils/mock_data.dart';
+import 'package:rainfall_app/services/database_service.dart';
 
-class QueueScreen extends StatelessWidget {
+class QueueScreen extends StatefulWidget {
   final UserModel user;
 
   const QueueScreen({super.key, required this.user});
+
+  @override
+  State<QueueScreen> createState() => _QueueScreenState();
+}
+
+class _QueueScreenState extends State<QueueScreen> {
+  final dbService = DatabaseService();
+  bool isSyncing = false;
+
+  void _triggerSync() async {
+    setState(() {
+      isSyncing = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Syncing offline submissions to database...'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final syncCount = await dbService.syncOfflineSubmissions();
+      
+      if (mounted) {
+        setState(() {
+          isSyncing = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(syncCount > 0 
+                ? 'Successfully synced $syncCount report(s)!' 
+                : 'Sync completed. No new uploads.'),
+            backgroundColor: AppColors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          isSyncing = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sync failed. Please check internet connection.'),
+            backgroundColor: AppColors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,16 +140,15 @@ class QueueScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Sync started...'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.sync, size: 20),
-                  label: const Text('Sync Now'),
+                  onPressed: isSyncing ? null : _triggerSync,
+                  icon: isSyncing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.sync, size: 20),
+                  label: Text(isSyncing ? 'Syncing...' : 'Sync Now'),
                 ),
               ),
               const SizedBox(height: 24),

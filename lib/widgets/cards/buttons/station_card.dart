@@ -79,7 +79,7 @@ class StationCard extends StatelessWidget {
                 ),
 
                 decoration: BoxDecoration(
-                  color: AppColors.red.withOpacity(0.15),
+                  color: AppColors.red.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
 

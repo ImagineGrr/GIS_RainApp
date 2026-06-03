@@ -4,25 +4,75 @@ import 'package:latlong2/latlong.dart';
 import 'package:rainfall_app/theme/app_colors.dart';
 import 'package:rainfall_app/models/user_model.dart';
 import 'package:rainfall_app/utils/mock_data.dart';
+import 'package:rainfall_app/services/gps_service.dart';
 import 'package:rainfall_app/screens/field/rainfall_entry_screen.dart';
 
-class GisScreen extends StatelessWidget {
+class GisScreen extends StatefulWidget {
   final UserModel user;
 
   const GisScreen({super.key, required this.user});
 
   @override
-  Widget build(BuildContext context) {
-    final station = MockData.getAssignedStation(user.assignedAreaId);
-    final stationLocation = LatLng(station.lat, station.lng);
+  State<GisScreen> createState() => _GisScreenState();
+}
 
-    // Simulated user location (slightly offset from station)
-    final userLocation = LatLng(station.lat + 0.0004, station.lng + 0.0004);
+class _GisScreenState extends State<GisScreen> {
+  final gpsService = GpsService();
+  
+  bool isCheckingGps = true;
+  LatLng? userLocation;
+  double distanceMeters = 0.0;
+  bool isWithinRange = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchGpsLocation();
+  }
+
+  Future<void> _fetchGpsLocation() async {
+    setState(() {
+      isCheckingGps = true;
+    });
+
+    try {
+      final station = MockData.getAssignedStation(widget.user.assignedAreaId);
+      final loc = await gpsService.getCurrentLocation();
+      final dist = gpsService.calculateDistance(loc, LatLng(station.lat, station.lng));
+      final within = gpsService.isWithinGeofence(loc, station);
+
+      setState(() {
+        userLocation = loc;
+        distanceMeters = dist;
+        isWithinRange = within;
+        isCheckingGps = false;
+      });
+    } catch (e) {
+      setState(() {
+        isCheckingGps = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final station = MockData.getAssignedStation(widget.user.assignedAreaId);
+    final stationLocation = LatLng(station.lat, station.lng);
+    
+    // Fallback if GPS not loaded yet
+    final mapCenter = stationLocation;
+    final currentUserLoc = userLocation ?? LatLng(station.lat + 0.0002, station.lng + 0.0002);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('GPS Verification'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.my_location),
+            onPressed: _fetchGpsLocation,
+          )
+        ],
       ),
       body: Column(
         children: [
@@ -33,8 +83,8 @@ class GisScreen extends StatelessWidget {
               children: [
                 FlutterMap(
                   options: MapOptions(
-                    initialCenter: stationLocation,
-                    initialZoom: 17,
+                    initialCenter: mapCenter,
+                    initialZoom: 17.5,
                   ),
                   children: [
                     TileLayer(
@@ -46,54 +96,55 @@ class GisScreen extends StatelessWidget {
                       circles: [
                         CircleMarker(
                           point: stationLocation,
-                          radius: 20,
+                          radius: 20, // 20-meter geofence radius
                           useRadiusInMeter: true,
-                          color: AppColors.green.withValues(alpha: 0.2),
-                          borderColor: AppColors.green,
-                          borderStrokeWidth: 3,
+                          color: (isWithinRange ? AppColors.green : AppColors.red).withValues(alpha: 0.15),
+                          borderColor: isWithinRange ? AppColors.green : AppColors.red,
+                          borderStrokeWidth: 2,
                         ),
                       ],
                     ),
                     // Markers
                     MarkerLayer(
                       markers: [
-                        // Station
+                        // Station Marker
                         Marker(
                           point: stationLocation,
-                          width: 90,
-                          height: 90,
+                          width: 80,
+                          height: 80,
                           child: Column(
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(10),
+                                padding: const EdgeInsets.all(8),
                                 decoration: const BoxDecoration(
                                   color: AppColors.primary,
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.water_drop, color: Colors.white, size: 30),
+                                child: const Icon(Icons.water_drop, color: Colors.white, size: 24),
                               ),
-                              const SizedBox(height: 6),
-                              const Text('Station', style: TextStyle(fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              const Text('Station', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                             ],
                           ),
                         ),
-                        // User
+                        // User Marker
                         Marker(
-                          point: userLocation,
-                          width: 90,
-                          height: 90,
+                          point: currentUserLoc,
+                          width: 80,
+                          height: 80,
                           child: Column(
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.green,
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: isWithinRange ? AppColors.green : AppColors.red,
                                   shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2),
                                 ),
-                                child: const Icon(Icons.person, color: Colors.white, size: 30),
+                                child: const Icon(Icons.person, color: Colors.white, size: 24),
                               ),
-                              const SizedBox(height: 6),
-                              const Text('You', style: TextStyle(fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              const Text('You', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                             ],
                           ),
                         ),
@@ -101,13 +152,14 @@ class GisScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                // GPS Status Card
+                
+                // GPS Status Badge Overlay
                 Positioned(
                   top: 16,
                   left: 16,
                   right: 16,
                   child: Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(18),
@@ -115,28 +167,40 @@ class GisScreen extends StatelessWidget {
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor: AppColors.green,
-                          child: Icon(Icons.gps_fixed, color: Colors.white),
+                          backgroundColor: isCheckingGps 
+                              ? AppColors.primary 
+                              : (isWithinRange ? AppColors.green : AppColors.red),
+                          child: Icon(
+                            isCheckingGps 
+                                ? Icons.sync 
+                                : (isWithinRange ? Icons.gps_fixed : Icons.gps_off), 
+                            color: Colors.white,
+                          ),
                         ),
-                        SizedBox(width: 14),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'GPS Verified',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                isCheckingGps 
+                                    ? 'Verifying Location...' 
+                                    : (isWithinRange ? 'GPS Verified' : 'Outside Geofence'),
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                               ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 4),
                               Text(
-                                'Distance: 12 meters',
-                                style: TextStyle(color: Colors.grey),
+                                isCheckingGps 
+                                    ? 'Acquiring GPS lock...' 
+                                    : 'Distance: ${distanceMeters.toStringAsFixed(1)} meters',
+                                style: const TextStyle(color: Colors.grey, fontSize: 13),
                               ),
                             ],
                           ),
@@ -148,6 +212,7 @@ class GisScreen extends StatelessWidget {
               ],
             ),
           ),
+          
           // BOTTOM SECTION
           Expanded(
             flex: 4,
@@ -173,19 +238,25 @@ class GisScreen extends StatelessWidget {
                     const SizedBox(height: 18),
                     _infoTile(Icons.social_distance, 'Allowed Radius', '20 meters'),
                     const SizedBox(height: 18),
-                    _infoTile(Icons.straighten, 'Current Distance', '12 meters'),
+                    _infoTile(Icons.straighten, 'Current Distance', 
+                        isCheckingGps ? 'Calculating...' : '${distanceMeters.toStringAsFixed(1)} meters'),
                     const SizedBox(height: 30),
+                    
+                    // Proceed Button
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: isCheckingGps ? null : () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => RainfallEntryScreen(user: user),
+                              builder: (_) => RainfallEntryScreen(user: widget.user),
                             ),
-                          );
+                          ).then((_) {
+                            // Refresh this page when returning
+                            _fetchGpsLocation();
+                          });
                         },
                         child: const Text('Continue To Rainfall Entry'),
                       ),
@@ -201,31 +272,19 @@ class GisScreen extends StatelessWidget {
     );
   }
 
-  Widget _infoTile(IconData icon, String title, String value) {
+  Widget _infoTile(IconData icon, String label, String value) {
     return Row(
       children: [
-        Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: AppColors.primaryLight,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: AppColors.primary),
-        ),
+        Icon(icon, color: AppColors.primary, size: 24),
         const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ],
-          ),
+        Text(
+          '$label:',
+          style: const TextStyle(color: Colors.grey, fontSize: 15),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
       ],
     );

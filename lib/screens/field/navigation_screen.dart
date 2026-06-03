@@ -18,23 +18,25 @@ class FieldNavigationScreen extends StatefulWidget {
 class _FieldNavigationScreenState extends State<FieldNavigationScreen> {
   int currentIndex = 0;
 
-  late final List<Widget> screens;
-
-  @override
-  void initState() {
-    super.initState();
-    screens = [
-      FieldHomeScreen(user: widget.user),
-      GisScreen(user: widget.user),
-      QueueScreen(user: widget.user),
-      FieldProfileScreen(user: widget.user),
-    ];
+  Widget _getScreen(int index) {
+    switch (index) {
+      case 0:
+        return FieldHomeScreen(user: widget.user);
+      case 1:
+        return GisScreen(user: widget.user);
+      case 2:
+        return QueueScreen(user: widget.user);
+      case 3:
+        return FieldProfileScreen(user: widget.user);
+      default:
+        return FieldHomeScreen(user: widget.user);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: screens[currentIndex],
+      body: _getScreen(currentIndex),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: currentIndex,
         selectedItemColor: AppColors.primary,

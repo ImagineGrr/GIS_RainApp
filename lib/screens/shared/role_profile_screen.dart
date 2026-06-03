@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:rainfall_app/theme/app_colors.dart';
 import 'package:rainfall_app/models/user_model.dart';
 import 'package:rainfall_app/screens/auth/login_screen.dart';
+import 'package:rainfall_app/services/auth_service.dart';
 
 /// Shared profile screen for Block, District, and State officers.
 class RoleProfileScreen extends StatelessWidget {
@@ -111,12 +112,15 @@ class RoleProfileScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    (route) => false,
-                  );
+                onPressed: () async {
+                  await AuthService().logout();
+                  if (context.mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  }
                 },
                 icon: const Icon(Icons.logout, color: AppColors.red),
                 label: const Text(

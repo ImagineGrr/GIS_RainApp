@@ -52,7 +52,7 @@ class MockData {
   };
 
   // ─── DISTRICTS ─────────────────────────────────────────────────
-  static const List<DistrictModel> districts = [
+  static List<DistrictModel> districts = [
     DistrictModel(
       id: 'dist_raipur',
       name: 'Raipur',
@@ -64,7 +64,7 @@ class MockData {
   ];
 
   // ─── BLOCKS ────────────────────────────────────────────────────
-  static const List<BlockModel> blocks = [
+  static List<BlockModel> blocks = [
     BlockModel(
       id: 'block_abhanpur',
       name: 'Abhanpur',
@@ -92,7 +92,7 @@ class MockData {
   ];
 
   // ─── VILLAGES ──────────────────────────────────────────────────
-  static const List<VillageModel> villages = [
+  static List<VillageModel> villages = [
     // Abhanpur Block
     VillageModel(id: 'v01', name: 'Khora', blockId: 'block_abhanpur', stationIds: ['RP001']),
     VillageModel(id: 'v02', name: 'Bhanpuri', blockId: 'block_abhanpur', stationIds: ['RP002']),
@@ -109,7 +109,7 @@ class MockData {
   ];
 
   // ─── STATIONS ──────────────────────────────────────────────────
-  static const List<StationModel> stations = [
+  static List<StationModel> stations = [
     // Abhanpur Block — 3 reported, 1 missing
     StationModel(
       id: 'RP001', name: 'Khora Station', villageId: 'v01', villageName: 'Khora',
@@ -176,6 +176,46 @@ class MockData {
       todayRainfall: 11.0, lastSubmission: 'Today • 11 mm (pending)',
     ),
   ];
+
+  /// Updates the cached metadata lists from the database
+  static void updateMetadata({
+    required List<DistrictModel> districts,
+    required List<BlockModel> blocks,
+    required List<VillageModel> villages,
+    required List<StationModel> stations,
+  }) {
+    MockData.districts = districts;
+    MockData.blocks = blocks;
+    MockData.villages = villages;
+    MockData.stations = stations;
+  }
+
+  /// Updates status for a single station in-memory
+  static void updateStationStatus({
+    required String stationId,
+    required StationStatus status,
+    required double todayRainfall,
+    required String lastSubmission,
+  }) {
+    final idx = stations.indexWhere((s) => s.id == stationId);
+    if (idx != -1) {
+      final old = stations[idx];
+      stations[idx] = StationModel(
+        id: old.id,
+        name: old.name,
+        villageId: old.villageId,
+        villageName: old.villageName,
+        blockId: old.blockId,
+        blockName: old.blockName,
+        districtId: old.districtId,
+        lat: old.lat,
+        lng: old.lng,
+        status: status,
+        todayRainfall: todayRainfall,
+        lastSubmission: lastSubmission,
+      );
+    }
+  }
 
   // ─── RAINFALL ENTRIES (for queue/history) ──────────────────────
   static List<RainfallEntry> rainfallEntries = [

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:rainfall_app/theme/app_colors.dart';
 import 'package:rainfall_app/models/user_model.dart';
-import 'package:rainfall_app/utils/mock_data.dart';
+import 'package:rainfall_app/services/auth_service.dart';
+import 'package:rainfall_app/services/database_service.dart';
 
 import 'package:rainfall_app/screens/field/navigation_screen.dart';
 import 'package:rainfall_app/screens/block/block_navigation_screen.dart';
@@ -16,42 +17,110 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final usernameController = TextEditingController();
-  final passwordController = TextEditingController();
-  bool obscurePassword = true;
+  final authService = AuthService();
+  final dbService = DatabaseService();
+  
+  final phoneController = TextEditingController();
+  final otpController = TextEditingController();
+  
+  bool isOtpSent = false;
   bool isLoading = false;
   String? errorMessage;
 
-  // Quick login shortcuts for demo purposes
+  // Quick testing login shortcuts
   final List<Map<String, String>> quickLogins = [
-    {'label': 'Field Operator', 'username': 'operator_rp001', 'password': '123456'},
-    {'label': 'Block Officer', 'username': 'block_abhanpur', 'password': '123456'},
-    {'label': 'District Officer', 'username': 'district_raipur', 'password': '123456'},
-    {'label': 'State Admin', 'username': 'state_admin', 'password': '123456'},
+    {'label': 'Field Operator', 'phone': '9876543210'},
+    {'label': 'Block Officer', 'phone': '9876543211'},
+    {'label': 'District Officer', 'phone': '9876543212'},
+    {'label': 'State Admin', 'phone': '9876543213'},
   ];
 
-  void _login() async {
+  @override
+  void initState() {
+    super.initState();
+    _checkExistingSession();
+  }
+
+  void _checkExistingSession() async {
+    setState(() => isLoading = true);
+    final user = await authService.getCurrentUser();
+    if (user != null) {
+      await dbService.syncMetadataFromDatabase();
+      if (mounted) {
+        _navigateToRole(user);
+      }
+    } else {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  void _sendOtp() async {
+    if (phoneController.text.trim().isEmpty) {
+      setState(() => errorMessage = 'Please enter a mobile number');
+      return;
+    }
+
     setState(() {
       isLoading = true;
       errorMessage = null;
     });
 
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    final user = MockData.authenticate(
-      usernameController.text.trim(),
-      passwordController.text.trim(),
-    );
-
-    if (!mounted) return;
-
-    if (user != null) {
-      _navigateToRole(user);
-    } else {
+    try {
+      await authService.sendOtp(phoneController.text.trim());
+      setState(() {
+        isOtpSent = true;
+        isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('OTP sent successfully!'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
       setState(() {
         isLoading = false;
-        errorMessage = 'Invalid username or password';
+        errorMessage = 'Failed to send OTP. Please check the number.';
+      });
+    }
+  }
+
+  void _verifyOtp() async {
+    if (otpController.text.trim().length < 6) {
+      setState(() => errorMessage = 'Please enter a valid 6-digit OTP code');
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final user = await authService.verifyOtp(
+        phoneController.text.trim(),
+        otpController.text.trim(),
+      );
+
+      if (user != null) {
+        // Fetch all database hierarchy tables and reports on successful login
+        await dbService.syncMetadataFromDatabase();
+        if (mounted) {
+          _navigateToRole(user);
+        }
+      } else {
+        setState(() {
+          isLoading = false;
+          errorMessage = 'Invalid OTP code. Please try again.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMessage = 'Authentication failed. Please try again.';
       });
     }
   }
@@ -134,77 +203,40 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 48),
 
-              // Username Field
-              const Text(
-                'Username',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: AppColors.textDark,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: usernameController,
-                decoration: InputDecoration(
-                  hintText: 'Enter your username',
-                  prefixIcon: const Icon(Icons.person_outline, color: AppColors.primary),
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
-                ),
+              // Animated Transition between Phone input and OTP verification
+              AnimatedCrossFade(
+                firstChild: _buildPhoneInputForm(),
+                secondChild: _buildOtpVerificationForm(),
+                crossFadeState: isOtpSent ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 300),
               ),
 
-              const SizedBox(height: 20),
-
-              // Password Field
-              const Text(
-                'Password',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: AppColors.textDark,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: passwordController,
-                obscureText: obscurePassword,
-                decoration: InputDecoration(
-                  hintText: 'Enter your password',
-                  prefixIcon: const Icon(Icons.lock_outline, color: AppColors.primary),
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      obscurePassword ? Icons.visibility_off : Icons.visibility,
-                      color: AppColors.textLight,
-                    ),
-                    onPressed: () {
-                      setState(() => obscurePassword = !obscurePassword);
-                    },
-                  ),
-                ),
-              ),
-
-              // Error message
+              // Error message display
               if (errorMessage != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  errorMessage!,
-                  style: const TextStyle(
-                    color: AppColors.red,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                const SizedBox(height: 16),
+                Center(
+                  child: Text(
+                    errorMessage!,
+                    style: const TextStyle(
+                      color: AppColors.red,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ],
 
               const SizedBox(height: 32),
 
-              // Login Button
+              // Submit Button
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: isLoading ? null : _login,
+                  onPressed: isLoading
+                      ? null
+                      : (isOtpSent ? _verifyOtp : _sendOtp),
                   child: isLoading
                       ? const SizedBox(
                           width: 24,
@@ -214,16 +246,34 @@ class _LoginScreenState extends State<LoginScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Sign In'),
+                      : Text(isOtpSent ? 'Verify & Sign In' : 'Send OTP Code'),
                 ),
               ),
 
-              const SizedBox(height: 36),
+              // Show Back Button if in OTP verification step
+              if (isOtpSent && !isLoading) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        isOtpSent = false;
+                        otpController.clear();
+                        errorMessage = null;
+                      });
+                    },
+                    icon: const Icon(Icons.arrow_back, size: 16),
+                    label: const Text('Change Phone Number'),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 40),
 
               // Quick Login Section
               const Center(
                 child: Text(
-                  'QUICK LOGIN (DEMO)',
+                  'DEVELOPER QUICK LOGIN (SANDBOX)',
                   style: TextStyle(
                     color: AppColors.textLight,
                     fontSize: 12,
@@ -234,7 +284,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Quick login buttons in grid
+              // Quick login buttons
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -251,10 +301,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
-                    onPressed: () {
-                      usernameController.text = login['username']!;
-                      passwordController.text = login['password']!;
-                      _login();
+                    onPressed: isLoading ? null : () async {
+                      phoneController.text = login['phone']!;
+                      setState(() {
+                        isLoading = true;
+                        errorMessage = null;
+                      });
+                      
+                      try {
+                        await authService.sendOtp(login['phone']!);
+                        setState(() {
+                          isOtpSent = true;
+                          isLoading = false;
+                          otpController.text = '123456'; // Auto fill Sandbox testing OTP
+                        });
+                      } catch (e) {
+                        setState(() {
+                          isLoading = false;
+                          errorMessage = 'Quick login failed. Make sure testing numbers are set.';
+                        });
+                      }
                     },
                     child: Text(
                       login['label']!,
@@ -277,10 +343,64 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildPhoneInputForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Registered Mobile Number',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            color: AppColors.textDark,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: phoneController,
+          keyboardType: TextInputType.phone,
+          decoration: InputDecoration(
+            hintText: 'Enter 10-digit mobile number',
+            prefixIcon: const Icon(Icons.phone_android, color: AppColors.primary),
+            hintStyle: TextStyle(color: Colors.grey.shade400),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOtpVerificationForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Verification Code sent to ${phoneController.text}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            color: AppColors.textDark,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: otpController,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          decoration: InputDecoration(
+            hintText: 'Enter 6-digit OTP code',
+            prefixIcon: const Icon(Icons.lock_outline, color: AppColors.primary),
+            hintStyle: TextStyle(color: Colors.grey.shade400),
+            counterText: '',
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
-    usernameController.dispose();
-    passwordController.dispose();
+    phoneController.dispose();
+    otpController.dispose();
     super.dispose();
   }
 }
