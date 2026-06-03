@@ -370,7 +370,12 @@ Widget _infoRow(String label, String value) {
 }
 
 /// Bottom sheet to show aggregated area details when a marker is tapped.
-void showAggregateInfoSheet(BuildContext context, AggregateMapMarker marker) {
+void showAggregateInfoSheet(
+  BuildContext context,
+  AggregateMapMarker marker, {
+  String actionLabel = 'View Details',
+  VoidCallback? onActionTap,
+}) {
   showModalBottomSheet(
     context: context,
     shape: const RoundedRectangleBorder(
@@ -450,6 +455,22 @@ void showAggregateInfoSheet(BuildContext context, AggregateMapMarker marker) {
             _infoRow('Total Stations', '${marker.total} stations'),
             if (marker.total > 0)
               _infoRow('Compliance', '${((marker.reported / marker.total) * 100).toStringAsFixed(1)}%'),
+            
+            if (onActionTap != null) ...[
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onActionTap();
+                  },
+                  child: Text(actionLabel),
+                ),
+              ),
+            ],
+            
             const SizedBox(height: 12),
           ],
         ),

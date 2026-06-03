@@ -6,14 +6,57 @@ import 'package:rainfall_app/utils/mock_data.dart';
 import 'package:rainfall_app/utils/constants.dart';
 import 'package:rainfall_app/widgets/map/gis_map_widget.dart';
 
-class DistrictMapScreen extends StatelessWidget {
+class DistrictMapScreen extends StatefulWidget {
   final UserModel user;
 
   const DistrictMapScreen({super.key, required this.user});
 
   @override
+  State<DistrictMapScreen> createState() => _DistrictMapScreenState();
+}
+
+class _DistrictMapScreenState extends State<DistrictMapScreen> {
+  String? selectedBlockId;
+
+  @override
   Widget build(BuildContext context) {
-    final district = MockData.getDistrict(user.assignedAreaId);
+    final district = MockData.getDistrict(widget.user.assignedAreaId);
+
+    // If a block is selected, show its stations. Otherwise, show block aggregates.
+    if (selectedBlockId != null) {
+      final block = MockData.getBlock(selectedBlockId!);
+      final blockStations = MockData.getStationsForBlock(block.id);
+
+      return Scaffold(
+        appBar: AppBar(title: Text('${block.name} Block — GIS')),
+        body: Stack(
+          children: [
+            GisMapWidget(
+              center: LatLng(block.centerLat, block.centerLng),
+              zoom: AppConstants.blockMapZoom,
+              stations: blockStations,
+              onStationTap: (station) {
+                showStationInfoSheet(context, station);
+              },
+            ),
+            Positioned(
+              top: 16,
+              left: 16,
+              child: FloatingActionButton.extended(
+                heroTag: 'back_btn',
+                onPressed: () => setState(() => selectedBlockId = null),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back to District'),
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Default: Show block aggregates for the district
     final districtBlocks = MockData.getBlocksForDistrict(district.id);
     
     final aggregateMarkers = districtBlocks.map((block) {
@@ -45,9 +88,17 @@ class DistrictMapScreen extends StatelessWidget {
         zoom: AppConstants.districtMapZoom,
         aggregateMarkers: aggregateMarkers,
         onAggregateTap: (marker) {
-          showAggregateInfoSheet(context, marker);
+          showAggregateInfoSheet(
+            context,
+            marker,
+            actionLabel: 'View Villages in Block',
+            onActionTap: () {
+              setState(() => selectedBlockId = marker.id);
+            },
+          );
         },
       ),
     );
   }
 }
+

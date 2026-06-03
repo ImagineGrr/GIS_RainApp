@@ -43,7 +43,7 @@ class MockData {
     ),
     'user_state': UserModel(
       id: 'user_state',
-      name: 'Rajesh Tiwari',
+      name: 'Sandeep',
       role: UserRole.state,
       phone: '9876543213',
       assignedAreaId: 'state_cg',
