@@ -1,0 +1,8 @@
+"column_name","data_type"
+"gid","integer"
+"dist_h","character varying"
+"dist_e","character varying"
+"div_cod","character varying"
+"sta_cod","character varying"
+"dist_cod","character varying"
+"geom","USER-DEFINED"

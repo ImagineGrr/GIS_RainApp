@@ -1,0 +1,3 @@
+- [React Native Maps web bundling](rnmaps-web.md) — react-native-maps imports native-only modules; must use .native.tsx platform split to avoid web bundle failure.
+- [Orval zod mode](orval-zod-mode.md) — use mode:"tags" (not "split") with no `schemas` option; index.ts must only export tag files (health/auth/stations/submissions/dashboard), never ./generated/api or ./generated/types.
+- [TanStack Query v5 UseQueryOptions](tanstack-query-v5.md) — generated hooks use `UseQueryOptions` with required `queryKey`; avoid passing `{enabled}` inline — instead do conditional filtering after the query runs.

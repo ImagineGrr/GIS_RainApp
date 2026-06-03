@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "UnEq1qCBhKq6m2DeT2J5L"
+uri = "file://artifacts/rainfall-app/assets/images/icon.png"
+type = "image"
+title = "generated_image"
