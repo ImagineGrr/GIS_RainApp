@@ -157,4 +157,36 @@ __pycache__/
 .swiftpm/
 migrate_working_dir/
 .cache/
+
+# VS Code
+.vscode/
+
+# Android Gradle cache
+/android/.gradle/
+/android/local.properties
+
+# iOS Pods
+/ios/Pods/
+/ios/.symlinks/
+
+# macOS Pods
+/macos/Pods/
+
+# Generated files
+.flutter-plugins
+.packages
+
+# Environment/secrets
+.env
+.env.*
+
+# Archives
+*.zip
+*.rar
+*.7z
+
+# APK/AAB
+*.apk
+*.aab
+*.ipa
 ```
