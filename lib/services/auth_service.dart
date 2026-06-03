@@ -58,49 +58,13 @@ class AuthService {
         return _mapProfileToUser(response);
       }
 
-      // Self-healing / Auto-provisioning step:
-      // If profile doesn't exist, check if it matches one of our default test users and insert it.
-      String cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
-      // If it has country code prefix 91, strip it for matching mock data keys
-      if (cleanPhone.startsWith('91') && cleanPhone.length > 10) {
-        cleanPhone = cleanPhone.substring(2);
-      }
-
-      UserModel? templateUser;
-      // Match by phone number in our MockData.users template
-      for (var u in MockData.users.values) {
-        if (u.phone == cleanPhone) {
-          templateUser = u;
-          break;
-        }
-      }
-
-      // Default fallback if a completely new random phone number is used
-      final name = templateUser?.name ?? 'Operator $cleanPhone';
-      final role = templateUser?.role ?? UserRole.field;
-      final areaId = templateUser?.assignedAreaId ?? 'RP001';
-      final areaName = templateUser?.assignedAreaName ?? 'Khora Village';
-
-      // Insert new profile record
-      await client.from('profiles').insert({
-        'id': userId,
-        'name': name,
-        'phone': phone,
-        'role': role.name,
-        'assigned_area_id': areaId,
-        'assigned_area_name': areaName,
-      });
-
-      return UserModel(
-        id: userId,
-        name: name,
-        role: role,
-        phone: phone,
-        assignedAreaId: areaId,
-        assignedAreaName: areaName,
-      );
+      // No profile exists for this authenticated user.
+      // Since self-signup is disabled, we sign them out immediately.
+      print('Unauthorized login attempt: Profile not found for user $userId ($phone)');
+      await logout();
+      return null;
     } catch (e) {
-      print('Error fetching or creating profile: $e');
+      print('Error fetching profile: $e');
       return null;
     }
   }
