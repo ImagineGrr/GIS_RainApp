@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:rainfall_app/theme/app_colors.dart';
 import 'package:rainfall_app/models/user_model.dart';
+import 'package:rainfall_app/models/station_model.dart';
 import 'package:rainfall_app/utils/mock_data.dart';
 import 'package:rainfall_app/utils/helpers.dart';
 import 'package:rainfall_app/services/gps_service.dart';
@@ -33,6 +34,23 @@ class _RainfallEntryScreenState extends State<RainfallEntryScreen> {
   @override
   void initState() {
     super.initState();
+    final station = MockData.getAssignedStation(widget.user.assignedAreaId);
+    if (station.todayRainfall != null) {
+      rainfallController.text = station.todayRainfall.toString();
+    }
+    for (var entry in MockData.rainfallEntries) {
+      if (entry.stationId == station.id) {
+        final now = DateTime.now();
+        if (entry.timestamp.year == now.year &&
+            entry.timestamp.month == now.month &&
+            entry.timestamp.day == now.day) {
+          if (entry.remarks != null) {
+            notesController.text = entry.remarks!;
+          }
+          break;
+        }
+      }
+    }
     _checkGeofence();
   }
 
@@ -138,6 +156,7 @@ class _RainfallEntryScreenState extends State<RainfallEntryScreen> {
   Widget build(BuildContext context) {
     final station = MockData.getAssignedStation(widget.user.assignedAreaId);
     final now = DateTime.now();
+    final alreadyReported = station.status == StationStatus.reported || station.status == StationStatus.pendingSync;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -147,6 +166,63 @@ class _RainfallEntryScreenState extends State<RainfallEntryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // WARNING BANNER (IF ALREADY SUBMITTED TODAY)
+            if (alreadyReported)
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: (station.status == StationStatus.pendingSync ? AppColors.yellow : AppColors.green).withValues(alpha: 0.1),
+                  border: Border.all(
+                    color: (station.status == StationStatus.pendingSync ? AppColors.yellow : AppColors.green).withValues(alpha: 0.4),
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: (station.status == StationStatus.pendingSync ? AppColors.yellow : AppColors.green).withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        station.status == StationStatus.pendingSync ? Icons.sync : Icons.check_circle_outline,
+                        color: station.status == StationStatus.pendingSync ? AppColors.yellow : AppColors.green,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            station.status == StationStatus.pendingSync ? 'Rainfall Entry Pending Sync' : 'Rainfall Already Submitted',
+                            style: TextStyle(
+                              color: station.status == StationStatus.pendingSync ? AppColors.yellow : AppColors.green,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            station.status == StationStatus.pendingSync
+                                ? "Today's rainfall recorded: ${station.todayRainfall ?? 0.0} mm (Stored in Sync Queue)"
+                                : "Today's rainfall has already been uploaded: ${station.todayRainfall ?? 0.0} mm",
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // DEVELOPER MOCK GPS SWITCH
             Container(
               margin: const EdgeInsets.only(bottom: 16),
@@ -302,6 +378,7 @@ class _RainfallEntryScreenState extends State<RainfallEntryScreen> {
               icon: Icons.cloud,
               controller: rainfallController,
               keyboardType: TextInputType.number,
+              enabled: !alreadyReported,
             ),
             const SizedBox(height: 20),
 
@@ -311,6 +388,7 @@ class _RainfallEntryScreenState extends State<RainfallEntryScreen> {
               icon: Icons.note_alt,
               controller: notesController,
               maxLines: 4,
+              enabled: !alreadyReported,
             ),
             const SizedBox(height: 28),
 
@@ -364,7 +442,7 @@ class _RainfallEntryScreenState extends State<RainfallEntryScreen> {
               width: double.infinity,
               height: 58,
               child: ElevatedButton(
-                onPressed: (isCheckingGps || isSubmitting || !isWithinRange) ? null : _submit,
+                onPressed: (isCheckingGps || isSubmitting || !isWithinRange || alreadyReported) ? null : _submit,
                 child: isSubmitting
                     ? const SizedBox(
                         width: 24,

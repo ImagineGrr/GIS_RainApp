@@ -1,130 +1,89 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:rainfall_app/models/station_model.dart';
 import 'package:rainfall_app/models/rainfall_model.dart';
 import 'package:rainfall_app/models/location_models.dart';
 import 'package:rainfall_app/utils/mock_data.dart';
+import 'package:rainfall_app/utils/config.dart';
+import 'package:rainfall_app/services/auth_service.dart';
 
 class DatabaseService {
-  static final client = Supabase.instance.client;
-
-  /// Fetches all districts, blocks, villages, and stations from Supabase,
+  /// Fetches all districts, blocks, villages, and stations from the Node.js API,
   /// maps relationships, and caches them in the in-memory MockData layer.
   Future<void> syncMetadataFromDatabase() async {
-    try {
-      // 1. Fetch Districts
-      final districtsData = await client.from('districts').select();
-      final List<DistrictModel> fetchedDistricts = [];
-      for (var d in districtsData) {
-        final distId = d['id'] as String;
-        // Fetch blocks associated with this district
-        final blocksForDist = await client.from('blocks').select('id').eq('district_id', distId);
-        final List<String> blockIds = (blocksForDist as List).map((b) => b['id'] as String).toList();
-        
-        fetchedDistricts.add(DistrictModel(
-          id: distId,
-          name: d['name'] as String,
-          stateId: 'state_cg',
-          blockIds: blockIds,
+    final response = await http.get(
+      Uri.parse('${AppConfig.baseUrl}/metadata'),
+      headers: {
+        'Authorization': 'Bearer ${AuthService.token}',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      // 1. Map Districts
+      final districtsData = data['districts'] as List;
+      final List<DistrictModel> fetchedDistricts = districtsData.map((d) {
+        return DistrictModel(
+          id: d['id'],
+          name: d['name'],
+          stateId: d['state_id'],
+          blockIds: List<String>.from(d['block_ids']),
           centerLat: (d['center_lat'] as num).toDouble(),
           centerLng: (d['center_lng'] as num).toDouble(),
-        ));
-      }
+        );
+      }).toList();
 
-      // 2. Fetch Blocks
-      final blocksData = await client.from('blocks').select();
-      final List<BlockModel> fetchedBlocks = [];
-      for (var b in blocksData) {
-        final blockId = b['id'] as String;
-        // Fetch villages associated with this block
-        final villagesForBlock = await client.from('villages').select('id').eq('block_id', blockId);
-        final List<String> villageIds = (villagesForBlock as List).map((v) => v['id'] as String).toList();
-        
-        fetchedBlocks.add(BlockModel(
-          id: blockId,
-          name: b['name'] as String,
-          districtId: b['district_id'] as String,
-          villageIds: villageIds,
+      // 2. Map Blocks
+      final blocksData = data['blocks'] as List;
+      final List<BlockModel> fetchedBlocks = blocksData.map((b) {
+        return BlockModel(
+          id: b['id'],
+          name: b['name'],
+          districtId: b['district_id'],
+          villageIds: List<String>.from(b['village_ids']),
           centerLat: (b['center_lat'] as num).toDouble(),
           centerLng: (b['center_lng'] as num).toDouble(),
-        ));
-      }
+        );
+      }).toList();
 
-      // 3. Fetch Villages
-      final villagesData = await client.from('villages').select();
-      final List<VillageModel> fetchedVillages = [];
-      for (var v in villagesData) {
-        final villageId = v['id'] as String;
-        // Fetch stations associated with this village
-        final stationsForVillage = await client.from('stations').select('id').eq('village_id', villageId);
-        final List<String> stationIds = (stationsForVillage as List).map((s) => s['id'] as String).toList();
-        
-        fetchedVillages.add(VillageModel(
-          id: villageId,
-          name: v['name'] as String,
-          blockId: v['block_id'] as String,
-          stationIds: stationIds,
-        ));
-      }
+      // 3. Map Villages
+      final villagesData = data['villages'] as List;
+      final List<VillageModel> fetchedVillages = villagesData.map((v) {
+        return VillageModel(
+          id: v['id'],
+          name: v['name'],
+          blockId: v['block_id'],
+          stationIds: List<String>.from(v['station_ids']),
+        );
+      }).toList();
 
-      // 4. Fetch Today's Submissions to determine station status
-      final todayStr = DateTime.now().toUtc().toIso8601String().substring(0, 10);
-      final rainfallTodayData = await client
-          .from('rainfall_entries')
-          .select()
-          .gte('timestamp', '${todayStr}T00:00:00Z');
+      // 4. Map Stations
+      final stationsData = data['stations'] as List;
+      final List<StationModel> fetchedStations = stationsData.map((s) {
+        final stationId = s['id'];
+        final villageId = s['village_id'];
 
-      final Map<String, Map<String, dynamic>> todayReportedMap = {};
-      for (var entry in rainfallTodayData) {
-        todayReportedMap[entry['station_id']] = {
-          'rainfall': (entry['rainfall'] as num).toDouble(),
-          'timestamp': entry['timestamp'],
-        };
-      }
-
-      // 5. Fetch Stations
-      final stationsData = await client.from('stations').select();
-      final List<StationModel> fetchedStations = [];
-      
-      for (var s in stationsData) {
-        final stationId = s['id'] as String;
-        final villageId = s['village_id'] as String;
-        
-        // Find matching administrative levels
         final village = fetchedVillages.firstWhere((v) => v.id == villageId, orElse: () => VillageModel(id: villageId, name: 'Unknown', blockId: '', stationIds: []));
         final block = fetchedBlocks.firstWhere((b) => b.id == village.blockId, orElse: () => BlockModel(id: '', name: 'Unknown', districtId: '', villageIds: [], centerLat: 0, centerLng: 0));
-        
-        final isReportedToday = todayReportedMap.containsKey(stationId);
-        double? todayRainfall;
-        String? lastSubmission;
-        StationStatus status = StationStatus.missing;
 
-        if (isReportedToday) {
-          todayRainfall = todayReportedMap[stationId]!['rainfall'];
-          status = StationStatus.reported;
-          lastSubmission = 'Today • $todayRainfall mm';
-        } else {
-          // Find last submission from history
-          final lastEntryData = await client
-              .from('rainfall_entries')
-              .select('rainfall, timestamp')
-              .eq('station_id', stationId)
-              .lt('timestamp', '${todayStr}T00:00:00Z')
-              .order('timestamp', ascending: false)
-              .limit(1)
-              .maybeSingle();
-
-          if (lastEntryData != null) {
-            final lastRainfall = (lastEntryData['rainfall'] as num).toDouble();
-            final lastTime = DateTime.parse(lastEntryData['timestamp'] as String).toLocal();
-            lastSubmission = 'Last: ${lastTime.day}/${lastTime.month} • $lastRainfall mm';
-          } else {
-            lastSubmission = 'No submissions yet';
-          }
+        // Parse StationStatus Enum
+        StationStatus status;
+        switch (s['status']) {
+          case 'reported':
+            status = StationStatus.reported;
+            break;
+          case 'pendingSync':
+            status = StationStatus.pendingSync;
+            break;
+          case 'missing':
+          default:
+            status = StationStatus.missing;
         }
 
-        fetchedStations.add(StationModel(
+        return StationModel(
           id: stationId,
-          name: s['name'] as String,
+          name: s['name'],
           villageId: villageId,
           villageName: village.name,
           blockId: block.id,
@@ -133,10 +92,10 @@ class DatabaseService {
           lat: (s['lat'] as num).toDouble(),
           lng: (s['lng'] as num).toDouble(),
           status: status,
-          todayRainfall: todayRainfall,
-          lastSubmission: lastSubmission,
-        ));
-      }
+          todayRainfall: s['today_rainfall'] != null ? (s['today_rainfall'] as num).toDouble() : null,
+          lastSubmission: s['last_submission'] ?? 'No submissions yet',
+        );
+      }).toList();
 
       // Update in-memory MockData with live values
       MockData.updateMetadata(
@@ -146,36 +105,55 @@ class DatabaseService {
         stations: fetchedStations,
       );
 
-      // Load rainfall entries list for current user
-      final currentUser = client.auth.currentUser;
-      if (currentUser != null) {
-        final submissionsResponse = await client
-            .from('rainfall_entries')
-            .select()
-            .order('timestamp', ascending: false)
-            .limit(50);
-            
-        final List<RainfallEntry> fetchedEntries = (submissionsResponse as List).map((entry) {
-          return RainfallEntry(
-            id: entry['id'] as String,
-            stationId: entry['station_id'] as String,
-            rainfall: (entry['rainfall'] as num).toDouble(),
-            timestamp: DateTime.parse(entry['timestamp'] as String).toLocal(),
-            lat: (entry['lat'] as num).toDouble(),
-            lng: (entry['lng'] as num).toDouble(),
-            remarks: entry['remarks'] as String?,
-            syncStatus: SyncStatus.synced,
-          );
-        }).toList();
-        
-        MockData.rainfallEntries = fetchedEntries;
+      try {
+        await fetchRainfallHistory();
+      } catch (e) {
+        print('Silent error fetching history: $e');
       }
-    } catch (e) {
-      print('Error syncing metadata from database: $e');
+    } else {
+      throw Exception('Failed to sync metadata: ${response.body}');
     }
   }
 
-  /// Submits a rainfall report to Supabase.
+  /// Fetches historical rainfall reports from the Node.js API,
+  /// and updates MockData.rainfallEntries while preserving local pending sync items.
+  Future<void> fetchRainfallHistory() async {
+    final response = await http.get(
+      Uri.parse('${AppConfig.baseUrl}/rainfall/history'),
+      headers: {
+        'Authorization': 'Bearer ${AuthService.token}',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      
+      final List<RainfallEntry> fetchedEntries = data.map((e) {
+        return RainfallEntry(
+          id: e['id'].toString(),
+          stationId: e['station_id'],
+          rainfall: (e['rainfall'] as num).toDouble(),
+          timestamp: DateTime.parse(e['timestamp']).toLocal(),
+          lat: (e['lat'] as num).toDouble(),
+          lng: (e['lng'] as num).toDouble(),
+          remarks: e['remarks'],
+          syncStatus: SyncStatus.synced,
+        );
+      }).toList();
+
+      // Merge: keep local pending sync entries at the top
+      final pending = MockData.rainfallEntries.where((e) => e.syncStatus == SyncStatus.pending).toList();
+      
+      MockData.rainfallEntries = [
+        ...pending,
+        ...fetchedEntries,
+      ];
+    } else {
+      throw Exception('Failed to fetch rainfall history: ${response.body}');
+    }
+  }
+
+  /// Submits a rainfall report to the database.
   /// If offline or upload fails, saves to MockData as pendingSync.
   Future<bool> submitRainfall({
     required String stationId,
@@ -211,23 +189,27 @@ class DatabaseService {
     );
 
     try {
-      // Attempt upload to Supabase (omit ID so Postgres auto-generates a UUID v4)
-      final response = await client.from('rainfall_entries').insert({
-        'station_id': stationId,
-        'rainfall': rainfall,
-        'timestamp': timestamp.toUtc().toIso8601String(),
-        'lat': lat,
-        'lng': lng,
-        'remarks': remarks,
-        'created_by': client.auth.currentUser?.id,
-      }).select().maybeSingle();
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/rainfall/submit'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${AuthService.token}',
+        },
+        body: jsonEncode({
+          'station_id': stationId,
+          'rainfall': rainfall,
+          'lat': lat,
+          'lng': lng,
+          'remarks': remarks,
+        }),
+      );
 
-      if (response != null) {
+      if (response.statusCode == 200) {
         // Success! Remove local temporary entry and insert the synced one
         final idx = MockData.rainfallEntries.indexWhere((e) => e.id == entryId);
         if (idx != -1) {
           MockData.rainfallEntries[idx] = RainfallEntry(
-            id: response['id'] as String,
+            id: entryId,
             stationId: stationId,
             rainfall: rainfall,
             timestamp: timestamp,
@@ -255,29 +237,35 @@ class DatabaseService {
   }
 
   /// Syncs all pending local submissions to the cloud
-  Future<int> syncOfflineSubmissions() async {
+  Future<int> syncOfflineSubmissions(String stationId) async {
     int syncCount = 0;
-    // Iterate over a copy of the list because we will modify items in-place
-    final pending = MockData.rainfallEntries.where((e) => e.syncStatus == SyncStatus.pending).toList();
+    final pending = MockData.rainfallEntries
+        .where((e) => e.syncStatus == SyncStatus.pending && e.stationId == stationId)
+        .toList();
 
     for (var entry in pending) {
       try {
-        final response = await client.from('rainfall_entries').insert({
-          'station_id': entry.stationId,
-          'rainfall': entry.rainfall,
-          'timestamp': entry.timestamp.toUtc().toIso8601String(),
-          'lat': entry.lat,
-          'lng': entry.lng,
-          'remarks': entry.remarks,
-          'created_by': client.auth.currentUser?.id,
-        }).select().maybeSingle();
+        final response = await http.post(
+          Uri.parse('${AppConfig.baseUrl}/rainfall/submit'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${AuthService.token}',
+          },
+          body: jsonEncode({
+            'station_id': entry.stationId,
+            'rainfall': entry.rainfall,
+            'lat': entry.lat,
+            'lng': entry.lng,
+            'remarks': entry.remarks,
+          }),
+        );
 
-        if (response != null) {
+        if (response.statusCode == 200) {
           // Update local status to Synced
           final idx = MockData.rainfallEntries.indexWhere((e) => e.id == entry.id);
           if (idx != -1) {
             MockData.rainfallEntries[idx] = RainfallEntry(
-              id: response['id'] as String,
+              id: entry.id,
               stationId: entry.stationId,
               rainfall: entry.rainfall,
               timestamp: entry.timestamp,

@@ -32,7 +32,7 @@ class _QueueScreenState extends State<QueueScreen> {
     );
 
     try {
-      final syncCount = await dbService.syncOfflineSubmissions();
+      final syncCount = await dbService.syncOfflineSubmissions(widget.user.assignedAreaId);
       
       if (mounted) {
         setState(() {
@@ -68,131 +68,150 @@ class _QueueScreenState extends State<QueueScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final entries = MockData.rainfallEntries;
+    final entries = MockData.rainfallEntries.where((e) => e.stationId == widget.user.assignedAreaId).toList();
     final pendingEntries = entries.where((e) => e.syncStatus == SyncStatus.pending).toList();
     final syncedEntries = entries.where((e) => e.syncStatus == SyncStatus.synced).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Sync Queue')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // SYNC STATUS CARD
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: pendingEntries.isEmpty ? AppColors.green : AppColors.yellow,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      pendingEntries.isEmpty ? Icons.cloud_done : Icons.cloud_upload,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          pendingEntries.isEmpty ? 'All Synced' : '${pendingEntries.length} Pending',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          pendingEntries.isEmpty
-                              ? 'All submissions uploaded successfully'
-                              : 'Waiting for internet connection',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // SYNC NOW BUTTON
-            if (pendingEntries.isNotEmpty) ...[
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: isSyncing ? null : _triggerSync,
-                  icon: isSyncing
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.sync, size: 20),
-                  label: Text(isSyncing ? 'Syncing...' : 'Sync Now'),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          try {
+            await dbService.syncMetadataFromDatabase();
+            if (mounted) setState(() {});
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Sync failed: ${e.toString()}'),
+                  backgroundColor: AppColors.red,
+                  behavior: SnackBarBehavior.floating,
                 ),
-              ),
-              const SizedBox(height: 24),
-            ],
-
-            // PENDING ENTRIES
-            if (pendingEntries.isNotEmpty) ...[
-              const Text(
-                'Pending Uploads',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              ...pendingEntries.map((entry) => _buildEntryCard(entry, isPending: true)),
-              const SizedBox(height: 20),
-            ],
-
-            // SYNCED ENTRIES
-            const Text(
-              'Synced Submissions',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            if (syncedEntries.isEmpty)
+              );
+            }
+          }
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // SYNC STATUS CARD
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  color: pendingEntries.isEmpty ? AppColors.green : AppColors.yellow,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Column(
+                child: Row(
                   children: [
-                    Icon(Icons.inbox, color: AppColors.textLight, size: 40),
-                    SizedBox(height: 12),
-                    Text(
-                      'No synced entries yet',
-                      style: TextStyle(color: AppColors.textLight),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        pendingEntries.isEmpty ? Icons.cloud_done : Icons.cloud_upload,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pendingEntries.isEmpty ? 'All Synced' : '${pendingEntries.length} Pending',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            pendingEntries.isEmpty
+                                ? 'All submissions uploaded successfully'
+                                : 'Waiting for internet connection',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              )
-            else
-              ...syncedEntries.map((entry) => _buildEntryCard(entry, isPending: false)),
-          ],
+              ),
+  
+              const SizedBox(height: 24),
+  
+              // SYNC NOW BUTTON
+              if (pendingEntries.isNotEmpty) ...[
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: isSyncing ? null : _triggerSync,
+                    icon: isSyncing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.sync, size: 20),
+                    label: Text(isSyncing ? 'Syncing...' : 'Sync Now'),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+  
+              // PENDING ENTRIES
+              if (pendingEntries.isNotEmpty) ...[
+                const Text(
+                  'Pending Uploads',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                ...pendingEntries.map((entry) => _buildEntryCard(entry, isPending: true)),
+                const SizedBox(height: 20),
+              ],
+  
+              // SYNCED ENTRIES
+              const Text(
+                'Synced Submissions',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              if (syncedEntries.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(Icons.inbox, color: AppColors.textLight, size: 40),
+                      SizedBox(height: 12),
+                      Text(
+                        'No synced entries yet',
+                        style: TextStyle(color: AppColors.textLight),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ...syncedEntries.map((entry) => _buildEntryCard(entry, isPending: false)),
+            ],
+          ),
         ),
       ),
     );
