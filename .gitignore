@@ -1,0 +1,192 @@
+```gitignore
+# =========================
+# General
+# =========================
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*.pyc
+*.class
+.DS_Store
+Thumbs.db
+
+# =========================
+# VS Code / IDE
+# =========================
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+.atom/
+
+# =========================
+# Flutter / Dart
+# =========================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub/
+.pub-cache/
+build/
+coverage/
+
+# Generated files
+**/doc/api/
+**/GeneratedPluginRegistrant.*
+**/*.g.dart
+**/*.freezed.dart
+
+# Flutter build metadata
+.flutter-versions
+.flutter-bootstrapped
+
+# =========================
+# Android
+# =========================
+/android/.gradle/
+/android/captures/
+/android/local.properties
+
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# APK / AAB
+*.apk
+*.aab
+
+# Keystore files
+*.jks
+*.keystore
+
+# =========================
+# iOS
+# =========================
+/ios/Flutter/.last_build_id
+/ios/Flutter/Flutter.framework
+/ios/Flutter/Flutter.podspec
+/ios/Pods/
+/ios/.symlinks/
+/ios/Runner.xcworkspace/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+
+# IPA
+*.ipa
+
+# =========================
+# macOS
+# =========================
+/macos/Pods/
+/macos/Flutter/ephemeral/
+
+# =========================
+# Linux
+# =========================
+/linux/flutter/ephemeral/
+
+# =========================
+# Windows
+# =========================
+/windows/flutter/ephemeral/
+
+# =========================
+# Web
+# =========================
+/web/flutter_service_worker.js
+/web/.dart_tool/
+
+# =========================
+# Firebase / Secrets
+# =========================
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+
+# Environment files
+.env
+.env.*
+*.env
+
+# =========================
+# Node.js (if using Firebase Functions or tooling)
+# =========================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# =========================
+# Python (if backend exists)
+# =========================
+venv/
+.venv/
+__pycache__/
+
+# =========================
+# Archives / Large files
+# =========================
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Large ML/model files
+*.pth
+*.pt
+*.onnx
+*.tflite
+
+# Database dumps
+*.sqlite
+*.db
+
+# =========================
+# Misc
+# =========================
+.history/
+.svn/
+.build/
+.buildlog/
+.swiftpm/
+migrate_working_dir/
+.cache/
+
+# VS Code
+.vscode/
+
+# Android Gradle cache
+/android/.gradle/
+/android/local.properties
+
+# iOS Pods
+/ios/Pods/
+/ios/.symlinks/
+
+# macOS Pods
+/macos/Pods/
+
+# Generated files
+.flutter-plugins
+.packages
+
+# Environment/secrets
+.env
+.env.*
+
+# Archives
+*.zip
+*.rar
+*.7z
+
+# APK/AAB
+*.apk
+*.aab
+*.ipa
+```

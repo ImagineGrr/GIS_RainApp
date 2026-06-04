@@ -1,0 +1,7 @@
+"column_name","data_type"
+"gid","integer"
+"rd_name","character varying"
+"rd_class","character varying"
+"pwd_code","character varying"
+"shape_leng","numeric"
+"geom","USER-DEFINED"

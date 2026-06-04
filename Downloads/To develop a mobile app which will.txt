@@ -1,0 +1,11 @@
+To develop a mobile app which will capture rainfall data from the points/locations across 734 stations in state of Chhattisgarh	
+rainfall data will be entered manually through app within the radius of 20 meter of the instrument so it should be geofenced
+there should be hierarchy levels village block tehsil district 
+
+dashboard for state level monitors
+
+authentication based on mobile number and otp (id and password too provide them by default)
+
+locations can be offline so whenever user comes online it gets uploaded
+
+should work on android and IOS too

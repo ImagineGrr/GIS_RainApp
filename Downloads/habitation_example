@@ -1,0 +1,4 @@
+"gid","hab_pop","st_sc_pop","hab_n","hab_id","teh_cod","dist_cod","div_cod","sta_cod","vill_nam","vill_cod","geom"
+1,0.0,0.0,"Maraiguda",1170973,"3373","642","5","22","Maraiguda","450487","0101000020E61000005DFB238E3E42544000F033DA63CB3140"
+2,188.0,188.0,"Kanhimarka",1170932,"3373","642","5","22",NULL,"0","0101000020E61000001AF1AC97AE41544031B7B1B3C0CE3140"
+3,90.0,90.0,"Chintakonta",1170848,"3373","642","5","22","Chintakonta","450418","0101000020E61000008CFB39A0F755544087B7774396CF3140"
